@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+.overlay-outside {
+  position: absolute;
+  top: -1vh; /* Adjust based on border width */
+  left: -1vh; /* Adjust based on border width */
+  right: -1vh; /* Adjust based on border width */
+  bottom: -1vh; /* Adjust based on border width */
+  background: rgba(255, 255, 255, 0.5);
+  z-index: 40; /* Ensures it is behind other content but above the video */
+  border-radius: 1vh; /* Matches the border radius of the content box */
+}
