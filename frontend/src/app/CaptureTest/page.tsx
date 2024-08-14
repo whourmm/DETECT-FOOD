@@ -38,11 +38,14 @@ const CaptureTest: React.FC = () => {
   };
   const sendToBackend = async () => {
     if (capturedImage) {
+      // Remove the 'data:image/png;base64,' prefix
+      const base64Image = capturedImage.split(",")[1];
+
       try {
         const response = await axios.post(
-          "http://localhost:8000/upload", // Your Python backend URL
+          "http://127.0.0.1:5000/detect", // Your Python backend URL
           {
-            image: capturedImage,
+            image: base64Image, // Send only the base64-encoded image data
           },
           {
             headers: {
@@ -56,6 +59,7 @@ const CaptureTest: React.FC = () => {
       }
     }
   };
+
   const capturePhoto = () => {
     if (videoRef.current && canvasRef.current) {
       const context = canvasRef.current.getContext("2d");
