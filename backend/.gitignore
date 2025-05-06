@@ -1,1 +1,6 @@
-__pycache__/
+/__pycache__/
+/.venv
+/data
+backend.py
+depressed.py
+flaskServer.py

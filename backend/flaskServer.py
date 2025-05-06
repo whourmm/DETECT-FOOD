@@ -46,7 +46,7 @@ class Server:
                 print("Processing completed successfully.")
             except Exception as e:
                 print("Error:", e)
-                return jsonify({"success": False, "error": str(e)}), 500
+                return jsonify({"success": False, "error": str(e)}), 400
 
             # Return success response with output data
             return jsonify({"success": True, "output": output}), 200
@@ -67,13 +67,13 @@ class Server:
             exit()
 
     def test(self):
-        testPath = "./data/die.jpg"
+        testPath = "./data/test2.jpg"
         with open(testPath, "rb") as image_file:
-            data = base64.b64encode(image_file.read())
+            data = base64.b64encode(image_file.read()).decode('utf-8')
         
-        print("Data : ",data)
+        # print("Data : ",data)
 
-        r = requests.post("http://127.0.0.1:3000/detect", json={'img': data})
+        r = requests.post("http://127.0.0.1:3000/detect", json={'image': data})
 
         if r.status_code == 200:
             return "<p>server and backend is working properly</p>"

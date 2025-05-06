@@ -1,21 +1,26 @@
 "use client";
 import React, { useRef, useState, useEffect } from "react";
 import Image from "next/image";
-import axios, { AxiosError } from "axios";
-import { stringifyError } from "next/dist/shared/lib/utils";
+import axios from "axios";
+
+// Define the backend API URL (should match your server)
+const API_URL = "http://127.0.0.1:3000";
 
 const CaptureTest: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
-  const [showResult, setShowResult] = useState(false); // State to show/hide popup
-  const [backendResult, setBackendResult] = useState<string | null>(null); // State to store the backend result
-  const [error, setError] = useState<boolean>(false); // State to track if an error occurred
+  const [showResult, setShowResult] = useState(false);
+  const [backendResult, setBackendResult] = useState<string | null>(null);
+  const [error, setError] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
+    // Start camera when component mounts
     startCamera();
     return () => {
+      // Cleanup on unmount
       stopCamera();
     };
   }, []);
@@ -23,23 +28,21 @@ const CaptureTest: React.FC = () => {
   const startCamera = async () => {
     setCameraActive(true);
     try {
-      // List available media devices
       const devices = await navigator.mediaDevices.enumerateDevices();
-
-      // Filter for video input devices
       const videoDevices = devices.filter(
         (device) => device.kind === "videoinput"
       );
 
-      // Log the video devices to see available options
-      console.log("Available video devices:", videoDevices);
-
-      // Assuming the external camera is the second video input device
-      const externalCamera = videoDevices[0];
-      if (externalCamera) {
-        // Get the stream from the external camera
+      // Select the first available camera
+      const camera = videoDevices[0];
+      if (camera) {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: externalCamera.deviceId },
+          video: {
+            deviceId: camera.deviceId,
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 30 },
+          },
         });
 
         if (videoRef.current) {
@@ -52,57 +55,88 @@ const CaptureTest: React.FC = () => {
           setCapturedImage(null);
         }
       } else {
-        console.error("External camera not found");
+        console.error("No cameras found");
+        setError(true);
+        setBackendResult("No camera devices found. Please check your permissions.");
+        setShowResult(true);
       }
     } catch (error) {
       console.error("Error accessing the camera", error);
+      setError(true);
+      setBackendResult("Error accessing camera. Please check your permissions.");
+      setShowResult(true);
     }
   };
 
   const sendToBackend = async () => {
     if (capturedImage) {
-      const base64Image = capturedImage.split(",")[1]; // Remove the prefix
+      setLoading(true);
+      // Extract base64 data from image URL
+      const base64Image = capturedImage.split(",")[1];
 
       try {
         const response = await axios.post(
-          "http://127.0.0.1:3000/detect", // Your Python backend URL
+          `${API_URL}/detect`,
           {
-            image: base64Image, // Send only the base64-encoded image data
+            image: base64Image,
           },
           {
             headers: {
               "Content-Type": "application/json",
             },
+            timeout: 30000, // 30 seconds timeout
           }
         );
 
-        if (response.status === 200) {
-          setBackendResult(response.data.output); // Store the backend result
-          setError(false); // No error
+        if (response.status === 200 && response.data.success) {
+          setBackendResult(response.data.output);
+          setError(false);
         } else {
-          setBackendResult(response.data.error || "Unknown error occurred"); // Custom error message
-          setError(true); // Mark as error
+          setBackendResult(response.data.error || "Unknown error occurred");
+          setError(true);
         }
       } catch (error: any) {
-        console.error("Error uploading the image", error);
+        console.error("Error sending image to backend:", error);
 
-        // Handle backend error or network error
-        if (
-          error.response &&
-          error.response.data &&
-          error.response.data.error
-        ) {
-          // Backend returned an error
-          setBackendResult(error.response.data.error);
+        if (error.response && error.response.data) {
+          setBackendResult(error.response.data.error || "Error processing request");
+        } else if (error.code === "ECONNABORTED") {
+          setBackendResult("Request timeout. The server took too long to respond.");
         } else {
-          // Network or unexpected error
           setBackendResult(error.message || "An unknown error occurred");
         }
-
-        setError(true); // Mark as error
+        setError(true);
       } finally {
-        setShowResult(true); // Show the popup regardless of success or error
+        setLoading(false);
+        setShowResult(true);
       }
+    }
+  };
+
+  const getAdvice = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(
+        `${API_URL}/advice`,
+        {
+          timeout: 10000, // 10 seconds timeout
+        }
+      );
+
+      if (response.status === 200 && response.data.success) {
+        setBackendResult(response.data.output);
+        setError(false);
+      } else {
+        setBackendResult(response.data.error || "Unknown error occurred");
+        setError(true);
+      }
+    } catch (error: any) {
+      console.error("Error getting advice:", error);
+      setBackendResult(error.response?.data?.error || "Error getting advice");
+      setError(true);
+    } finally {
+      setLoading(false);
+      setShowResult(true);
     }
   };
 
@@ -115,8 +149,11 @@ const CaptureTest: React.FC = () => {
         return;
       }
 
+      // Set canvas dimensions to match video feed
       canvasRef.current.width = videoRef.current.videoWidth;
       canvasRef.current.height = videoRef.current.videoHeight;
+      
+      // Draw the current video frame to the canvas
       context.drawImage(
         videoRef.current,
         0,
@@ -125,7 +162,8 @@ const CaptureTest: React.FC = () => {
         canvasRef.current.height
       );
 
-      const image = canvasRef.current.toDataURL("image/png");
+      // Get the image from the canvas
+      const image = canvasRef.current.toDataURL("image/jpeg", 0.9);
 
       if (image.length > 0) {
         setCapturedImage(image);
@@ -146,29 +184,49 @@ const CaptureTest: React.FC = () => {
     setCameraActive(false);
   };
 
+  const resetCamera = () => {
+    setCapturedImage(null);
+    setShowResult(false);
+    setBackendResult(null);
+    setError(false);
+    startCamera();
+  };
+
   return (
-    <div>
-      <div className="relative flex justify-center">
+    <div className="h-screen w-full bg-gray-100 flex flex-col items-center justify-center">
+      <div className="relative flex justify-center mb-16">
         {capturedImage && !cameraActive && (
-          <div className="relative w-[100vw] h-[100vh] flex flex-col items-center">
+          <div className="relative flex flex-col items-center">
             <img
               src={capturedImage}
               alt="Captured"
-              className="w-full h-full object-cover"
+              className="object-cover rounded-lg shadow-lg"
+              style={{ width: "400px", height: "70vh" }}
             />
-            <button
-              className="fixed bottom-[20vh] bg-white px-8 py-3 font-bold rounded-[5vh]"
-              onClick={sendToBackend}
-            >
-              See your result
-            </button>
+            <div className="flex space-x-4 mt-4">
+              <button
+                className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-3 font-bold rounded-lg transition-colors shadow-md"
+                onClick={sendToBackend}
+                disabled={loading}
+              >
+                {loading ? "Processing..." : "Analyze Food"}
+              </button>
+              <button
+                className="bg-green-500 hover:bg-green-600 text-white px-8 py-3 font-bold rounded-lg transition-colors shadow-md"
+                onClick={getAdvice}
+                disabled={loading}
+              >
+                Get Food Advice
+              </button>
+            </div>
           </div>
         )}
         {cameraActive && (
-          <div className="relative w-[400px] h-[100vh] flex flex-col items-center">
+          <div className="relative flex flex-col items-center">
             <video
               ref={videoRef}
-              className="w-full h-full object-cover"
+              className="object-cover rounded-lg shadow-lg"
+              style={{ width: "400px", height: "70vh" }}
               autoPlay
               playsInline
             ></video>
@@ -176,16 +234,17 @@ const CaptureTest: React.FC = () => {
         )}
       </div>
 
-      <div className="text-white bg-[#B7E3FE] h-[50px] font-bold w-full fixed bottom-0 rounded-t-[5vh] px-10 py-10 flex justify-center items-center">
-        <Image
-          src={"/img/Camera.svg"}
-          alt="cover"
-          width={80}
-          height={80}
-          className="z-50 mb-5"
-          onClick={cameraActive ? stopCamera : startCamera}
-        />
-        <div className="z-10 fixed bg-[#B7E3FE] w-[100px] h-[100px] p-5 bottom-[1vh] left-1/2 transform -translate-x-1/2 rounded-[10vh]"></div>
+      <div className="text-white bg-blue-400 h-16 font-bold w-full fixed bottom-0 rounded-t-3xl px-10 py-4 flex justify-center items-center">
+        <div className="z-10 fixed bg-blue-500 w-20 h-20 p-4 bottom-4 left-1/2 transform -translate-x-1/2 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-blue-600 transition-colors">
+          <Image
+            src="/img/Camera.svg"
+            alt="camera"
+            width={40}
+            height={40}
+            className="z-50"
+            onClick={cameraActive ? stopCamera : startCamera}
+          />
+        </div>
       </div>
 
       <canvas
@@ -195,22 +254,29 @@ const CaptureTest: React.FC = () => {
         style={{ display: "none" }}
       ></canvas>
 
-      {/* Popup modal */}
       {showResult && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="flex flex-col bg-white p-6 rounded-lg shadow-lg justify-center">
-            <h2 className="text-2xl font-bold mb-4 text-center">
-              {error ? "Cannot found the test" : "Result"}
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+            <h2 className="text-2xl font-bold mb-4 text-center text-gray-800">
+              {error ? "Error" : "Food Analysis"}
             </h2>
-            <p>{backendResult}</p>
-            <button
-              onClick={() => {
-                setShowResult(false);
-              }}
-              className="mt-4 bg-blue-500 text-white px-4 py-2 rounded mx-20"
-            >
-              Close
-            </button>
+            <div className="max-h-64 overflow-y-auto mb-4 whitespace-pre-line">
+              <p className="text-gray-700">{backendResult}</p>
+            </div>
+            <div className="flex justify-center space-x-4">
+              <button
+                onClick={() => setShowResult(false)}
+                className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={resetCamera}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                New Photo
+              </button>
+            </div>
           </div>
         </div>
       )}
