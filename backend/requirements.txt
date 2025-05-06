@@ -10,3 +10,8 @@ opencv_python==4.11.0.86
 pandas==2.2.3
 Requests==2.32.3
 tensorflow==2.19.0
+temp
+os
+sys
+json
+python-dotenv==1.1.0
