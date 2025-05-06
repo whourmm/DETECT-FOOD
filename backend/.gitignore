@@ -1,6 +1,7 @@
-/__pycache__/
+./__pycache__/
 /.venv
-/data
+data
 backend.py
-depressed.py
+depressed.ipynb
 flaskServer.py
+vgg_tune_model.h5
