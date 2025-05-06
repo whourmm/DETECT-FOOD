@@ -7,6 +7,8 @@ from io import BytesIO
 import os
 import sys
 import json
+from dotenv import load_dotenv
+load_dotenv()
 
 # Import the backend2 module
 import backend2
@@ -25,7 +27,7 @@ class Server:
         self.app.add_url_rule("/advice", "advice", self.advice, methods=["GET"])
         
         # Get API key from environment variables or set a default for testing
-        self.api_key = os.environ.get('GOOGLE_API_KEY', 'AIzaSyC2Ub6OCsfQ7A0xHJETCS6fpzjaYFC_Cdw')
+        self.api_key = os.environ.get('GOOGLE_API_KEY')
         print(f"Server initialized with API endpoint: {self.url}")
 
     def hello_world(self):
@@ -187,6 +189,8 @@ class Server:
         except Exception as e:
             print(f"Unexpected error: {str(e)}")
             sys.exit(1)
+
+app = Server("http://0.0.0.0:3000/").app
 
 if __name__ == "__main__":
     # Default URL
