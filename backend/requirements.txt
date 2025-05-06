@@ -1,0 +1,12 @@
+Flask==3.1.0
+flask_cors==5.0.1
+gdown==5.2.0
+langchain==0.3.25
+langchain_core==0.3.58
+langchain_google_genai==2.1.4
+matplotlib==3.10.1
+numpy==2.2.5
+opencv_python==4.11.0.86
+pandas==2.2.3
+Requests==2.32.3
+tensorflow==2.19.0
